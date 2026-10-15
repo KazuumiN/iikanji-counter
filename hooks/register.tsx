@@ -275,28 +275,37 @@ const rankLine = (o: Online) => (o.rank === null ? '' : `（世界 ${o.rank} 位
 
 let lastSync = 0
 
-// 参加中なら自分の集計を送る。失敗してもいい感じカウンター本体には影響させない
-async function sync($: EngineInterface, force = false) {
-  const account = await loadAccount($)
-  if (account === null || (await baseUrl($)) === '') return
-  if (!force && !(await read($, settings)).sync) return
-  const now = await $.clock.now()
-  if (!force && now - lastSync < SYNC_INTERVAL_MS) return
-  lastSync = now
-
-  const { ok, data } = await api($, '/v1/submit', {
+// 自分の集計を一回だけ送る。サーバーは5秒に1回までなので、同じ操作の中で二重に送らないこと
+async function submitStats($: EngineInterface, account: Account) {
+  return api($, '/v1/submit', {
     method: 'POST',
     body: { id: account.id, secret: account.secret, name: account.name, stats: statsOf(await read($, counts)) },
   })
-  if (ok) {
-    await update($, online, () => ({
-      isJoined: true,
-      name: account.name,
-      rank: typeof data.rank === 'number' ? data.rank : null,
-      players: typeof data.players === 'number' ? data.players : null,
-    }))
-    await refreshWorld($)
-  }
+}
+
+// 送った結果（順位・人数）を画面の状態に反映する。429（短時間の連続送信）でも順位は返ってくる
+async function applyOnline($: EngineInterface, account: Account, res: { ok: boolean; status: number; data: Record<string, unknown> }) {
+  if (!res.ok && res.status !== 429) return
+  const { data } = res
+  await update($, online, () => ({
+    isJoined: true,
+    name: account.name,
+    rank: typeof data.rank === 'number' ? data.rank : null,
+    players: typeof data.players === 'number' ? data.players : null,
+  }))
+  await refreshWorld($)
+}
+
+// 参加中なら自分の集計を送る。失敗してもいい感じカウンター本体には影響させない
+async function sync($: EngineInterface) {
+  const account = await loadAccount($)
+  if (account === null || (await baseUrl($)) === '') return
+  if (!(await read($, settings)).sync) return
+  const now = await $.clock.now()
+  if (now - lastSync < SYNC_INTERVAL_MS) return
+  lastSync = now
+
+  await applyOnline($, account, await submitStats($, account))
 }
 
 export const register: Register = on => {
@@ -344,17 +353,18 @@ export const register: Register = on => {
       if (verb === 'rename' && existing === null) return { text: '先に /iikanji join で参加してください。' }
       const name = cleanName(word) || existing?.name || randomName()
       const account: Account = { id: existing?.id ?? randomToken(32), secret: existing?.secret ?? randomToken(40), name }
-      if (word !== '') {
-        const probe = await api($, '/v1/submit', {
-          method: 'POST',
-          body: { id: account.id, secret: account.secret, name, stats: statsOf(await read($, counts)) },
-        })
-        if (probe.status === 400 && probe.data.error === 'name_rejected') {
-          return { text: 'その名前は使えません。メールアドレス・URL・電話番号のようなものは避けてください。' }
-        }
+      const res = await submitStats($, account)
+      if (res.status === 400 && res.data.error === 'name_rejected') {
+        return { text: 'その名前は使えません。メールアドレス・URL・電話番号のようなものは避けてください。' }
+      }
+      if (res.status === 403) {
+        return { text: 'サーバーの記録とこの端末の登録情報が合いません。一度 /iikanji leave を試すか、別の名前でやり直してください。' }
+      }
+      if (!res.ok && res.status !== 429) {
+        return { text: '世界ランキングに接続できませんでした。ネットワークを確かめて、もう一度試してください。' }
       }
       await $.store.set(STORE.account, account)
-      await sync($, true)
+      await applyOnline($, account, res)
 
       const state = await read($, online)
 
@@ -404,7 +414,7 @@ export const register: Register = on => {
       return { text: '世界ランキングから退会し、サーバー上のデータを削除しました。' }
     }
 
-    if (verb === 'world') {
+    if (verb === 'world' || verb === 'ranking') {
       await refreshWorld($).catch(() => undefined)
       await $.ui.open({ id: PANE, title: 'いい感じカウンター' })
 
@@ -467,15 +477,10 @@ export const register: Register = on => {
       const after = total(all)
       const caught = hits.map(([p, n]) => `「${p}」×${n}`).join(' ')
       const isMilestone = before === 0 || Math.floor(after / STEP) > Math.floor(before / STEP)
-      const medal = unlocked.map(b => ` 🏅実績解除: ${b.label}`).join('')
+      const medal = unlocked.map(b => `🏅実績解除: ${b.label}`).join('\n')
       const isShown = cfg.celebrate === 'all' || (cfg.celebrate === 'milestone' && (isMilestone || unlocked.length > 0))
-      await update($, celebration, () =>
-        !isShown
-          ? null
-          : isMilestone
-            ? `${caught} 通算 ${after} 回！ ${rankOf(after)} になりました${medal}`
-            : `${pickOne(CATCH_CALLS)} ${caught}${medal}`,
-      )
+      const head = isMilestone ? `${pickOne(CATCH_CALLS)} ${caught}\n通算 ${after} 回！ ${rankOf(after)} になりました` : `${pickOne(CATCH_CALLS)} ${caught}`
+      await update($, celebration, () => (!isShown ? null : medal === '' ? head : `${head}\n${medal}`))
       const topHit = [...hits].sort((a, b) => b[1] - a[1])[0]
       await update($, hint, () => (topHit ? hintText(topHit[0]) : null))
       await update($, quote, () => (topHit ? quoteOf(body, topHit[0]) : null))
@@ -504,7 +509,7 @@ export const register: Register = on => {
     const { Box, Button, Text } = $.ui.resolve(e)
 
     if (message !== null) {
-      const banner = `🎉 ${message} 🎉`
+      const lines = message.split('\n').map((line, i) => (i === 0 ? `🎉 ${line} 🎉` : line))
       const close = () =>
         update($, celebration, () => null)
           .then(() => update($, hint, () => null))
@@ -512,13 +517,15 @@ export const register: Register = on => {
 
       return (
         <Box flexDirection="column" borderStyle="double" borderColor="yellow" paddingX={1}>
-          <Box>
-            {[...banner].map((ch, i) => (
-              <Text bold color={RAINBOW[i % RAINBOW.length]}>
-                {ch}
-              </Text>
-            ))}
-          </Box>
+          {lines.map(line => (
+            <Box>
+              {[...line].map((ch, i) => (
+                <Text bold color={RAINBOW[i % RAINBOW.length]}>
+                  {ch}
+                </Text>
+              ))}
+            </Box>
+          ))}
           {cfg.quote && cited !== null && <Text bold>{cited.who}</Text>}
           {cfg.quote && cited !== null && (
             <Text>

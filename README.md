@@ -55,7 +55,7 @@ claude plugin install iikanji-counter@kazuumi-mods --scope user
 | --- | --- |
 | `/iikanji join [名前]` | 参加する。名前を省略するとランダムな名前になる |
 | `/iikanji rename 名前` | 表示名を変える |
-| `/iikanji world` | 世界ランキングを更新してパネルを開く |
+| `/iikanji world`（`/iikanji ranking` も同じ） | 世界ランキングを更新してパネルを開く |
 | `/iikanji leave` | 退会し、サーバー上のデータを削除する |
 
 参加すると、名前・通算回数・既定語の種類数・一番多い既定語だけを送ります。プロンプトの文章や、自分で追加した語は送りません。参加するまでは、何も送りません。

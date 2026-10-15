@@ -306,3 +306,61 @@ test('キャラ・言い換え（前→後）・次のランク・世界の追�
   expect(await pane.find({ type: 'Text', text: /2位まであと 9 回/ })).toBeDefined()
   await pane.unmount()
 })
+
+test('join は送信を一回だけにし、サーバーの5秒制限に当たっても参加状態がパネルに出る', async ($, on) => {
+  mock.store(on)
+  mock.clock(on, { now: NOW })
+  mock.env(on, { IIKANJI_API_URL: 'https://ranking.test' })
+  let submits = 0
+  const players = [
+    { rank: 1, name: 'A', total: 30, topPhrase: null, topCount: 0 },
+    { rank: 2, name: 'ためし', total: 0, topPhrase: null, topCount: 0 },
+  ]
+  on('http.fetch', ((_$: unknown, e: { url: string }) => {
+    const path = new URL(e.url).pathname
+    if (path === '/v1/ranking') return { value: { status: 200, ok: true, headers: {}, text: JSON.stringify({ players, count: 2 }) } } as never
+    submits += 1
+    // 2回目以降は、サーバーの制限（5秒に1回）で 429 になる
+    return submits === 1
+      ? ({ value: { status: 200, ok: true, headers: {}, text: JSON.stringify({ ok: true, rank: 2, players: 2 }) } } as never)
+      : ({ value: { status: 429, ok: false, headers: {}, text: JSON.stringify({ error: 'too_fast', rank: 2, players: 2 }) } } as never)
+  }) as never)
+  on('ui.open', open)
+
+  const joined = JSON.stringify(await $.command.run({ command: 'iikanji', args: 'join ためし' } as never))
+  expect(submits).toBe(1)
+  expect(joined).toContain('世界 2 位')
+
+  const again = JSON.stringify(await $.command.run({ command: 'iikanji', args: 'rename ためし' } as never))
+  expect(again).toContain('表示名を')
+
+  const pane = await $.ui.mount({ plugin: 'iikanji-counter', surface: 'terminal', ...PANE } as never)
+  expect(await pane.find({ type: 'Text', text: /あなた: ためし（世界 2 位 \/ 2 人中）/ })).toBeDefined()
+  expect(await pane.find({ type: 'Text', text: /1位をキープ|1位まであと 31 回/ })).toBeDefined()
+  expect(await pane.find({ type: 'Text', text: /join で参加/ })).toBeUndefined()
+  await pane.unmount()
+})
+
+test('ranking コマンドは world と同じく更新してパネルを開く', async ($, on) => {
+  mock.store(on)
+  mock.clock(on, { now: NOW })
+  mock.env(on, { IIKANJI_API_URL: 'https://ranking.test' })
+  on('http.fetch', (() => ({ value: { status: 200, ok: true, headers: {}, text: JSON.stringify({ players: [], count: 0 }) } })) as never)
+  on('ui.open', open)
+
+  expect(JSON.stringify(await $.command.run({ command: 'iikanji', args: 'ranking' } as never))).toContain('世界ランキングを更新')
+})
+
+test('メダルの行はバナーで別の行になる', async ($, on) => {
+  mock.store(on)
+  mock.clock(on, { now: NOW })
+  on('prompt.submit', ($$, e) => ({ text: e.text }) as never)
+  on('ui.open', open)
+
+  await $.prompt.submit({ text: 'いい感じにして' })
+
+  const ui = await $.ui.mount({ plugin: 'iikanji-counter', surface: 'terminal', ...BAND } as never)
+  const all = await ui.findAll({ type: 'Box' })
+  expect(all.length > 2).toBe(true)
+  await ui.unmount()
+})
