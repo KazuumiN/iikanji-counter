@@ -253,3 +253,23 @@ test('パネルの各セクションを設定でオフにできる', async ($, o
   expect(await pane.find({ type: 'Button', key: 'settings' })).toBeDefined()
   await pane.unmount()
 })
+
+test('世界ランキングのサンプル参加者はパネルで見分けられる', async ($, on) => {
+  mock.store(on)
+  mock.clock(on, { now: NOW })
+  mock.env(on, { KUCHIGUSE_API_URL: 'https://ranking.test' })
+  const players = [
+    { rank: 1, name: '見本たぬき', total: 20, topPhrase: 'とりあえず', topCount: 9, isSample: true },
+    { rank: 2, name: '本物ねこ', total: 10, topPhrase: null, topCount: 0, isSample: false },
+  ]
+  on('http.fetch', (() => ({ value: { status: 200, ok: true, headers: {}, text: JSON.stringify({ players, count: 2 }) } })) as never)
+  on('ui.open', open)
+
+  await $.command.run({ command: 'kuchiguse', args: 'world' } as never)
+
+  const pane = await $.ui.mount({ plugin: 'kuchiguse-counter', surface: 'terminal', ...PANE } as never)
+  expect(await pane.find({ type: 'Text', text: /見本たぬき（サンプル）/ })).toBeDefined()
+  expect(await pane.find({ type: 'Text', text: /本物ねこ（サンプル）/ })).toBeUndefined()
+  expect(await pane.find({ type: 'Text', text: /見本の架空の参加者/ })).toBeDefined()
+  await pane.unmount()
+})

@@ -575,9 +575,11 @@ export const register: Register = on => {
         {me.isJoined && board === null && <Text dimColor>/kuchiguse world で取得</Text>}
         {(board ?? []).map(row => (
           <Text bold={row.name === me.name} color={row.name === me.name ? 'yellow' : undefined}>
-            {['🥇', '🥈', '🥉'][row.rank - 1] ?? `${row.rank}.`} {row.name} {row.total} 回{row.topPhrase ? `（${row.topPhrase}）` : ''}
+            {['🥇', '🥈', '🥉'][row.rank - 1] ?? `${row.rank}.`} {row.name}
+            {row.isSample ? '（サンプル）' : ''} {row.total} 回{row.topPhrase ? `（${row.topPhrase}）` : ''}
           </Text>
         ))}
+        {(board ?? []).some(row => row.isSample) && <Text dimColor>「サンプル」は見本の架空の参加者です</Text>}
           </Box>
         )}
         {cfg.secBadges && (

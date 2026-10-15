@@ -1,6 +1,6 @@
 export type Counts = Record<string, number>
 export type Daily = Record<string, Counts>
-export type WorldRow = { rank: number; name: string; total: number; topPhrase: string | null; topCount: number }
+export type WorldRow = { rank: number; name: string; total: number; topPhrase: string | null; topCount: number; isSample?: boolean }
 export type Quote = { before: string; phrase: string; after: string }
 export type Celebrate = 'all' | 'milestone' | 'off'
 export type Settings = {
