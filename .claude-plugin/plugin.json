@@ -1,7 +1,7 @@
 {
-  "name": "kuchiguse-counter",
-  "version": "0.2.0",
-  "description": "送ったプロンプトの口癖（とりあえず／いい感じに など）を数えて、ランキング・実績・言い換えヒントで見せる",
+  "name": "iikanji-counter",
+  "version": "0.3.0",
+  "description": "いい感じカウンター: 口癖（いい感じに・とりあえず など）を数えて、キャラ・ランキング・実績・言い換えヒントで見せる",
   "author": { "name": "kazuumi" },
   "types": "./types/index.d.ts"
 }

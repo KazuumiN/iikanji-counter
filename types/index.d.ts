@@ -1,7 +1,7 @@
 export type Counts = Record<string, number>
 export type Daily = Record<string, Counts>
 export type WorldRow = { rank: number; name: string; total: number; topPhrase: string | null; topCount: number; isSample?: boolean }
-export type Quote = { before: string; phrase: string; after: string }
+export type Quote = { before: string; phrase: string; after: string; who: string }
 export type Celebrate = 'all' | 'milestone' | 'off'
 export type Settings = {
   celebrate: Celebrate
@@ -18,7 +18,7 @@ export type Online = { isJoined: boolean; name: string; rank: number | null; pla
 
 declare module 'claude-code' {
   interface PluginState {
-    'kuchiguse-counter': {
+    'iikanji-counter': {
       counts: Counts
       custom: string[]
       daily: Daily

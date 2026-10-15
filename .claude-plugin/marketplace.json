@@ -1,5 +1,5 @@
 {
   "name": "kazuumi-mods",
   "owner": { "name": "kazuumi" },
-  "plugins": [{ "name": "kuchiguse-counter", "source": "./" }]
+  "plugins": [{ "name": "iikanji-counter", "source": "./" }]
 }

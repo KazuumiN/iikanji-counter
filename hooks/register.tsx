@@ -18,20 +18,47 @@ const DEFAULT_PHRASES = [
   'いったん',
 ]
 
-const HINTS: Record<string, string> = {
-  とりあえず: '「とりあえず」の先に目的は？ 「まず◯◯を動かす」と書くと一発で通ります',
-  いい感じに: '「いい感じ」の基準は？ 例:「読みやすさ優先で」「既存のコードに合わせて」',
-  良き感じに: '「良き」の基準は？ 例:「読みやすさ優先で」「既存のコードに合わせて」',
-  よしなに: '任せる範囲を一言添えると手戻りが減ります。例:「命名は任せる」',
-  ちょっと: 'どのくらい？ 「3行以内」「1箇所だけ」など数字にすると伝わります',
-  なんか: '何が気になりますか？ いつ・どこで・どうなるかを書いてみましょう',
-  たぶん: '確かめられることは確かめてから送ると、往復が減ります',
-  一応: '必要な理由を添えると「一応」が要らなくなります',
-  ざっくり: 'どの粒度まで？ 「3項目で」「1段落で」と指定してみましょう',
-  さくっと: '範囲を決めましょう。例:「このファイルだけ」「テストは除く」',
-  適当に: '「適当」の条件は？ 例:「命名は既存に合わせて」',
-  いったん: '次の手を決めておくと、いったんが宙に浮きません',
+// 言い換えヒント: 口癖を含む言い方 → 伝わりやすい言い方
+const HINTS: Record<string, { before: string; after: string }> = {
+  とりあえず: { before: 'とりあえず動かして', after: 'まずログインだけ動かして。細部は後で' },
+  いい感じに: { before: 'いい感じにして', after: '読みやすさ優先で、既存の書き方に合わせて' },
+  良き感じに: { before: '良き感じにして', after: '余白を広めに、色数は3色までで' },
+  よしなに: { before: 'よしなにお願い', after: '命名は任せる。ただし公開APIは変えないで' },
+  ちょっと: { before: 'ちょっと直して', after: '1箇所だけ。関数名の誤字を直して' },
+  なんか: { before: 'なんか遅い', after: '一覧を開くと3秒かかる。ネットワークは正常' },
+  たぶん: { before: 'たぶん原因はここ', after: 'ログでここまで確認済み。ここから先は未確認' },
+  一応: { before: '一応テストも', after: '壊れやすい分岐なので、境界値のテストも' },
+  ざっくり: { before: 'ざっくり説明して', after: '3項目で、各1文ずつ説明して' },
+  さくっと: { before: 'さくっと直して', after: 'このファイルだけ。テストは触らないで' },
+  適当に: { before: '適当に名前をつけて', after: '既存の命名規則（camelCase）に合わせて' },
+  いったん: { before: 'いったん保留', after: '今日は保留。明日の朝に再開する' },
 }
+
+const hintText = (phrase: string) => {
+  const h = HINTS[phrase]
+
+  return h === undefined ? null : `「${h.before}」→「${h.after}」`
+}
+
+// 口癖ごとのキャラクター
+const CHARACTERS: Record<string, string> = {
+  いい感じに: '🪄 ふんわり魔法使い',
+  良き感じに: '🧚 良き感じの妖精',
+  とりあえず: '🏃 見切り発車の妖精',
+  よしなに: '🎎 おまかせ侍',
+  ちょっと: '🤏 ちょっぴり小人',
+  なんか: '🌫️ もやもや霧',
+  たぶん: '🔮 たぶん占い師',
+  一応: '🛡️ 念のため番人',
+  ざっくり: '🗺️ ざっくり探検家',
+  さくっと: '⚡ さくさく忍者',
+  適当に: '🎲 てきとう賭博師',
+  いったん: '⏸️ 一旦停止の番人',
+}
+const characterOf = (phrase: string) => CHARACTERS[phrase] ?? '👾 名もなき口癖'
+
+// 捕まえたときの掛け声（毎回ランダム）
+const CATCH_CALLS = ['🎣 釣れた！', '🚨 いい感じセンサー反応！', '🎯 命中！', '📡 口癖レーダーに反応！', '✨ キャッチ！']
 
 type BadgeContext = { counts: Counts; today: number }
 const BADGES: readonly { id: string; label: string; test: (c: BadgeContext) => boolean }[] = [
@@ -42,8 +69,8 @@ const BADGES: readonly { id: string; label: string; test: (c: BadgeContext) => b
   { id: 'hundred', label: '💯 通算100回', test: c => total(c.counts) >= 100 },
 ]
 
-// 世界ランキング API（Cloudflare Workers）。KUCHIGUSE_API_URL 環境変数で上書きできる。空だと参加できない
-const API_URL = 'https://kuchiguse.kazuumi.page'
+// 世界ランキング API（Cloudflare Workers）。IIKANJI_API_URL 環境変数で上書きできる。空だと参加できない
+const API_URL = 'https://iikanji.kazuumi.page'
 const SYNC_INTERVAL_MS = 30_000
 const NAME_MAX = 16
 const ADJECTIVES = ['ふわふわ', 'のんびり', 'きらきら', 'ゆるゆる', 'こっそり', 'ほくほく', 'もちもち', 'ぽかぽか']
@@ -57,8 +84,8 @@ const STORE = {
   account: 'account',
   settings: 'settings',
 } as const
-const PANE = 'kuchiguse'
-const SETTINGS_PANE = 'kuchiguse-settings'
+const PANE = 'iikanji'
+const SETTINGS_PANE = 'iikanji-settings'
 const STEP = 5
 const TOP = 6
 const KEEP_DAYS = 60
@@ -67,16 +94,16 @@ const BAR_WIDTH = 24
 const SPARK = '▁▂▃▄▅▆▇█'
 const DAY_MS = 86_400_000
 
-const counts = atom({ plugin: 'kuchiguse-counter', key: 'counts' } as const, {} as Counts)
-const custom = atom({ plugin: 'kuchiguse-counter', key: 'custom' } as const, [] as string[])
-const daily = atom({ plugin: 'kuchiguse-counter', key: 'daily' } as const, {} as Daily)
-const badges = atom({ plugin: 'kuchiguse-counter', key: 'badges' } as const, [] as string[])
+const counts = atom({ plugin: 'iikanji-counter', key: 'counts' } as const, {} as Counts)
+const custom = atom({ plugin: 'iikanji-counter', key: 'custom' } as const, [] as string[])
+const daily = atom({ plugin: 'iikanji-counter', key: 'daily' } as const, {} as Daily)
+const badges = atom({ plugin: 'iikanji-counter', key: 'badges' } as const, [] as string[])
 const online = atom(
-  { plugin: 'kuchiguse-counter', key: 'online' } as const,
+  { plugin: 'iikanji-counter', key: 'online' } as const,
   { isJoined: false, name: '', rank: null, players: null } as Online,
 )
-const world = atom({ plugin: 'kuchiguse-counter', key: 'world' } as const, null as WorldRow[] | null)
-const settings = atom({ plugin: 'kuchiguse-counter', key: 'settings' } as const, {
+const world = atom({ plugin: 'iikanji-counter', key: 'world' } as const, null as WorldRow[] | null)
+const settings = atom({ plugin: 'iikanji-counter', key: 'settings' } as const, {
   celebrate: 'all',
   quote: true,
   hint: true,
@@ -87,9 +114,9 @@ const settings = atom({ plugin: 'kuchiguse-counter', key: 'settings' } as const,
   secBadges: true,
   secWorld: true,
 } as Settings)
-const celebration = atom({ plugin: 'kuchiguse-counter', key: 'celebration' } as const, null as string | null)
-const quote = atom({ plugin: 'kuchiguse-counter', key: 'quote' } as const, null as Quote | null)
-const hint = atom({ plugin: 'kuchiguse-counter', key: 'hint' } as const, null as string | null)
+const celebration = atom({ plugin: 'iikanji-counter', key: 'celebration' } as const, null as string | null)
+const quote = atom({ plugin: 'iikanji-counter', key: 'quote' } as const, null as Quote | null)
+const hint = atom({ plugin: 'iikanji-counter', key: 'hint' } as const, null as string | null)
 
 const DEFAULT_SETTINGS: Settings = {
   celebrate: 'all',
@@ -106,10 +133,10 @@ const DEFAULT_SETTINGS: Settings = {
 const CELEBRATE_LABEL: Record<Celebrate, string> = { all: '毎回', milestone: '節目と実績だけ', off: 'なし' }
 const CELEBRATE_NEXT: Record<Celebrate, Celebrate> = { all: 'milestone', milestone: 'off', off: 'all' }
 
-// 設定の一覧。alias は /kuchiguse settings <alias> <値> で使う名前
+// 設定の一覧。alias は /iikanji settings <alias> <値> で使う名前
 const SETTING_DEFS = [
   { key: 'celebrate', alias: 'celebrate', label: 'お祝いバナー' },
-  { key: 'quote', alias: 'quote', label: '引用の表示（バナー内）' },
+  { key: 'quote', alias: 'quote', label: '引用とキャラ（バナー内）' },
   { key: 'hint', alias: 'hint', label: '言い換えヒント（バナー内）' },
   { key: 'band', alias: 'band', label: '通常の小さな帯（プロンプト上）' },
   { key: 'autoOpen', alias: 'auto-open', label: '最初の口癖でパネルを自動で開く' },
@@ -154,6 +181,7 @@ const quoteOf = (body: string, phrase: string): Quote | null => {
     before: `${from > 0 ? '…' : ''}${flat.slice(from, at)}`,
     phrase,
     after: `${flat.slice(at + phrase.length, to)}${to < flat.length ? '…' : ''}`,
+    who: `${characterOf(phrase)}が現れた！`,
   }
 }
 
@@ -175,6 +203,14 @@ const dayTotals = (log: Daily, todayKey: string, days: number, offset = 0) => {
   return out
 }
 
+const RANKS = [
+  { at: 50, label: '👑 口癖マスター' },
+  { at: 20, label: '🔥 口癖の達人' },
+  { at: 10, label: '⭐ 口癖の常連' },
+  { at: 5, label: '🌱 口癖の芽' },
+]
+const nextRankOf = (n: number) => [...RANKS].reverse().find(r => r.at > n) ?? null
+
 const rankOf = (n: number) =>
   n >= 50 ? '👑 口癖マスター' : n >= 20 ? '🔥 口癖の達人' : n >= 10 ? '⭐ 口癖の常連' : n >= STEP ? '🌱 口癖の芽' : '🥚 口癖のたまご'
 
@@ -187,6 +223,7 @@ const randomToken = (length: number) => {
 
   return [...bytes].map(b => chars[b % chars.length]).join('')
 }
+const pickOne = <T,>(list: readonly T[]) => list[Math.floor(Math.random() * list.length)] as T
 const pick = <T,>(list: readonly T[]) => list[Math.floor(Math.random() * list.length)] as T
 const randomName = () => `${pick(ADJECTIVES)}${pick(ANIMALS)}${Math.floor(1000 + Math.random() * 9000)}`
 const cleanName = (raw: string) => raw.replace(/[\u0000-\u001f\u007f<>]/g, '').trim().slice(0, NAME_MAX)
@@ -198,7 +235,7 @@ const statsOf = (c: Counts) => {
   return { total: total(c), distinct: Object.keys(c).filter(p => DEFAULT_PHRASES.includes(p)).length, topPhrase: top?.[0] ?? null, topCount: top?.[1] ?? 0 }
 }
 
-const baseUrl = async ($: EngineInterface) => ((await $.env.get('KUCHIGUSE_API_URL')) ?? API_URL).replace(/\/$/, '')
+const baseUrl = async ($: EngineInterface) => ((await $.env.get('IIKANJI_API_URL')) ?? API_URL).replace(/\/$/, '')
 
 const api = async ($: EngineInterface, path: string, init?: { method?: string; body?: unknown }) => {
   const res = await $.http.fetch(`${await baseUrl($)}${path}`, {
@@ -225,11 +262,20 @@ const refreshWorld = async ($: EngineInterface) => {
   }
 }
 
+// 世界ランキングで一つ上の人を追い越すのに、あと何回か
+const chaseText = (rank: number, mine: number, board: WorldRow[] | null) => {
+  if (rank <= 1) return '👑 1位をキープ中！'
+  const above = board?.find(row => row.rank === rank - 1)
+  if (above === undefined) return `現在 ${rank} 位`
+
+  return `🚀 ${rank - 1}位まであと ${Math.max(1, above.total - mine + 1)} 回`
+}
+
 const rankLine = (o: Online) => (o.rank === null ? '' : `（世界 ${o.rank} 位 / ${o.players ?? '?'} 人中）`)
 
 let lastSync = 0
 
-// 参加中なら自分の集計を送る。失敗しても口癖カウンター本体には影響させない
+// 参加中なら自分の集計を送る。失敗してもいい感じカウンター本体には影響させない
 async function sync($: EngineInterface, force = false) {
   const account = await loadAccount($)
   if (account === null || (await baseUrl($)) === '') return
@@ -281,21 +327,21 @@ export const register: Register = on => {
       await update($, online, current => ({ ...current, isJoined: true, name: account.name }))
     }
     await $.command.register({
-      name: 'kuchiguse',
-      description: '口癖カウンターのパネルを開く（settings / add / remove 語 / join [名前] / rename 名前 / leave / world）',
+      name: 'iikanji',
+      description: 'いい感じカウンターのパネルを開く（settings / add / remove 語 / join [名前] / rename 名前 / leave / world）',
     })
 
     return next(e)
   })
 
-  on('command.run', { command: 'kuchiguse' }, async ($, e) => {
+  on('command.run', { command: 'iikanji' }, async ($, e) => {
     const [verb, ...rest] = e.args.trim().split(/\s+/)
     const word = rest.join(' ')
 
     if (verb === 'join' || verb === 'rename') {
       if ((await baseUrl($)) === '') return { text: '世界ランキングはまだ準備中です（API の URL が未設定です）。' }
       const existing = await loadAccount($)
-      if (verb === 'rename' && existing === null) return { text: '先に /kuchiguse join で参加してください。' }
+      if (verb === 'rename' && existing === null) return { text: '先に /iikanji join で参加してください。' }
       const name = cleanName(word) || existing?.name || randomName()
       const account: Account = { id: existing?.id ?? randomToken(32), secret: existing?.secret ?? randomToken(40), name }
       if (word !== '') {
@@ -315,7 +361,7 @@ export const register: Register = on => {
       return {
         text:
           verb === 'join' && existing === null
-            ? `世界ランキングに「${name}」として参加しました${rankLine(state)}。送るのは名前・回数・語の種類数・一番多い既定語だけです（文章や追加語は送りません）。名前は全員に公開されます（本名・会社名・連絡先は入れないでください）。/kuchiguse rename 名前 で変えられ、やめるときは /kuchiguse leave です。`
+            ? `世界ランキングに「${name}」として参加しました${rankLine(state)}。送るのは名前・回数・語の種類数・一番多い既定語だけです（文章や追加語は送りません）。名前は全員に公開されます（本名・会社名・連絡先は入れないでください）。/iikanji rename 名前 で変えられ、やめるときは /iikanji leave です。`
             : `表示名を「${name}」にしました${rankLine(state)}。`,
       }
     }
@@ -342,9 +388,9 @@ export const register: Register = on => {
 
         return { text: `${def.label}を変えました。\n${settingsText(await read($, settings))}` }
       }
-      await $.ui.open({ id: SETTINGS_PANE, title: '口癖カウンターの設定' })
+      await $.ui.open({ id: SETTINGS_PANE, title: 'いい感じカウンターの設定' })
 
-      return { text: `設定パネルを開きました。\n${settingsText(await read($, settings))}\n（変更: /kuchiguse settings 名前 on|off、初期値: /kuchiguse settings reset）` }
+      return { text: `設定パネルを開きました。\n${settingsText(await read($, settings))}\n（変更: /iikanji settings 名前 on|off、初期値: /iikanji settings reset）` }
     }
 
     if (verb === 'leave') {
@@ -360,7 +406,7 @@ export const register: Register = on => {
 
     if (verb === 'world') {
       await refreshWorld($).catch(() => undefined)
-      await $.ui.open({ id: PANE, title: '口癖カウンター' })
+      await $.ui.open({ id: PANE, title: 'いい感じカウンター' })
 
       return { text: '世界ランキングを更新して、パネルを開きました。' }
     }
@@ -374,9 +420,9 @@ export const register: Register = on => {
       return { text: verb === 'add' ? `「${word}」を口癖に追加しました。` : `「${word}」を口癖から外しました。` }
     }
 
-    await $.ui.open({ id: PANE, title: '口癖カウンター' })
+    await $.ui.open({ id: PANE, title: 'いい感じカウンター' })
 
-    return { text: '口癖カウンターのパネルを開きました。（追加: /kuchiguse add 語、削除: /kuchiguse remove 語）' }
+    return { text: 'いい感じカウンターのパネルを開きました。（追加: /iikanji add 語、削除: /iikanji remove 語）' }
   })
 
   on('prompt.submit', async ($, e, next) => {
@@ -428,14 +474,14 @@ export const register: Register = on => {
           ? null
           : isMilestone
             ? `${caught} 通算 ${after} 回！ ${rankOf(after)} になりました${medal}`
-            : `${caught} キャッチ！${medal}`,
+            : `${pickOne(CATCH_CALLS)} ${caught}${medal}`,
       )
       const topHit = [...hits].sort((a, b) => b[1] - a[1])[0]
-      await update($, hint, () => (topHit ? (HINTS[topHit[0]] ?? null) : null))
+      await update($, hint, () => (topHit ? hintText(topHit[0]) : null))
       await update($, quote, () => (topHit ? quoteOf(body, topHit[0]) : null))
 
       if (before === 0 && cfg.autoOpen) {
-        void $.ui.open({ id: PANE, title: '口癖カウンター' })
+        void $.ui.open({ id: PANE, title: 'いい感じカウンター' })
       }
       void sync($).catch(() => undefined)
     }
@@ -473,6 +519,7 @@ export const register: Register = on => {
               </Text>
             ))}
           </Box>
+          {cfg.quote && cited !== null && <Text bold>{cited.who}</Text>}
           {cfg.quote && cited !== null && (
             <Text>
               📝 <Text dimColor>「{cited.before}</Text>
@@ -485,8 +532,8 @@ export const register: Register = on => {
           {cfg.hint && tip !== null && <Text color="cyan">💡 {tip}</Text>}
           <Box>
             <Button key="ok" label="OK!" onPress={close} />
-            <Button key="pane" label="ランキングを見る" onPress={() => $.ui.open({ id: PANE, title: '口癖カウンター' })} />
-            <Button key="settings" label="⚙ 設定" onPress={() => $.ui.open({ id: SETTINGS_PANE, title: '口癖カウンターの設定' })} />
+            <Button key="pane" label="ランキングを見る" onPress={() => $.ui.open({ id: PANE, title: 'いい感じカウンター' })} />
+            <Button key="settings" label="⚙ 設定" onPress={() => $.ui.open({ id: SETTINGS_PANE, title: 'いい感じカウンターの設定' })} />
           </Box>
         </Box>
       )
@@ -495,10 +542,10 @@ export const register: Register = on => {
     return (
       <Box>
         <Text dimColor>
-          口癖カウンター: {ranked(current).slice(0, 3).map(([p, n]) => `「${p}」${n}回`).join(' / ')}（通算 {total(current)} 回）{' '}
+          いい感じカウンター: {ranked(current).slice(0, 3).map(([p, n]) => `「${p}」${n}回`).join(' / ')}（通算 {total(current)} 回）{' '}
         </Text>
         <Button key="hide" label="隠す" onPress={() => setSettings($, { band: false })} />
-        <Button key="settings" label="⚙ 設定" onPress={() => $.ui.open({ id: SETTINGS_PANE, title: '口癖カウンターの設定' })} />
+        <Button key="settings" label="⚙ 設定" onPress={() => $.ui.open({ id: SETTINGS_PANE, title: 'いい感じカウンターの設定' })} />
       </Box>
     )
   })
@@ -517,6 +564,7 @@ export const register: Register = on => {
     const list = ranked(current).slice(0, TOP)
     const top = Math.max(1, ...list.map(([, n]) => n))
     const toNext = STEP - (sum % STEP)
+    const nextRank = nextRankOf(sum)
     const filled = Math.round(((sum % STEP) / STEP) * BAR_WIDTH)
 
     const week = dayTotals(log, todayKey, 7)
@@ -532,9 +580,9 @@ export const register: Register = on => {
       <Box flexDirection="column" paddingX={1}>
         <Box>
           <Text bold color="yellow">
-            ✨ 口癖ランキング ✨{' '}
+            ✨ いい感じランキング ✨{' '}
           </Text>
-          <Button key="settings" label="⚙ 設定" onPress={() => $.ui.open({ id: SETTINGS_PANE, title: '口癖カウンターの設定' })} />
+          <Button key="settings" label="⚙ 設定" onPress={() => $.ui.open({ id: SETTINGS_PANE, title: 'いい感じカウンターの設定' })} />
         </Box>
         <Text>{rankOf(sum)}（通算 {sum} 回）</Text>
         <Text> </Text>
@@ -554,6 +602,9 @@ export const register: Register = on => {
           )
         })}
         <Text> </Text>
+        <Text dimColor>
+          {nextRank === null ? '最高ランクに到達しました 👑' : `次のランク（${nextRank.label}）まで あと ${nextRank.at - sum} 回`}
+        </Text>
         <Text dimColor>次のお祝いまであと {toNext} 回</Text>
         <Text color="green">
           {'▰'.repeat(filled)}
@@ -571,8 +622,11 @@ export const register: Register = on => {
           <Box flexDirection="column">
         <Text> </Text>
         <Text bold>🌍 世界ランキング{me.isJoined ? ` あなた: ${me.name}${rankLine(me)}` : ''}</Text>
-        {!me.isJoined && <Text dimColor>/kuchiguse join で参加（名前はランダムで作られます）</Text>}
-        {me.isJoined && board === null && <Text dimColor>/kuchiguse world で取得</Text>}
+        {!me.isJoined && <Text dimColor>/iikanji join で参加（名前はランダムで作られます）</Text>}
+        {me.isJoined && board === null && <Text dimColor>/iikanji world で取得</Text>}
+        {me.isJoined && me.rank !== null && (
+          <Text color="green">{chaseText(me.rank, sum, board)}</Text>
+        )}
         {(board ?? []).map(row => (
           <Text bold={row.name === me.name} color={row.name === me.name ? 'yellow' : undefined}>
             {['🥇', '🥈', '🥉'][row.rank - 1] ?? `${row.rank}.`} {row.name}
@@ -604,7 +658,7 @@ export const register: Register = on => {
     return (
       <Box flexDirection="column" paddingX={1}>
         <Text bold color="yellow">
-          ⚙ 口癖カウンターの設定
+          ⚙ いい感じカウンターの設定
         </Text>
         <Text dimColor>うるさいと感じたものはオフにできます。数えること自体は止まりません。</Text>
         <Text> </Text>
@@ -624,7 +678,7 @@ export const register: Register = on => {
         ))}
         <Text> </Text>
         <Button key="reset" label="初期値に戻す" onPress={() => setSettings($, null)} />
-        <Text dimColor>コマンド: /kuchiguse settings 名前 on|off（お祝いは all|milestone|off）</Text>
+        <Text dimColor>コマンド: /iikanji settings 名前 on|off（お祝いは all|milestone|off）</Text>
       </Box>
     )
   })
