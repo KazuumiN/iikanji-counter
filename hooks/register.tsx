@@ -296,6 +296,33 @@ async function applyOnline($: EngineInterface, account: Account, res: { ok: bool
   await refreshWorld($)
 }
 
+// 保存してある登録情報から、参加状態を画面に戻す（再読み込み後の取りこぼし対策）
+async function restoreOnline($: EngineInterface) {
+  const account = await loadAccount($)
+  if (account !== null && !(await read($, online)).isJoined) {
+    await update($, online, current => ({ ...current, isJoined: true, name: account.name }))
+  }
+}
+
+// パネルの「更新」: 参加状態を戻し、自分の集計を送って、世界ランキングを取り直す。失敗しても止めない
+async function refreshAll($: EngineInterface) {
+  await restoreOnline($)
+  const account = await loadAccount($)
+  if (account !== null && (await baseUrl($)) !== '') {
+    await applyOnline($, account, await submitStats($, account)).catch(() => undefined)
+  } else if ((await baseUrl($)) !== '') {
+    await refreshWorld($).catch(() => undefined)
+  }
+}
+
+// パネルの「表示リセット」: バナー・引用・ヒント・世界ランキングの表示だけを消す。累計・実績・設定・参加状態は消さない
+async function clearDisplay($: EngineInterface) {
+  await update($, celebration, () => null)
+  await update($, hint, () => null)
+  await update($, quote, () => null)
+  await update($, world, () => null)
+}
+
 // 参加中なら自分の集計を送る。失敗してもいい感じカウンター本体には影響させない
 async function sync($: EngineInterface) {
   const account = await loadAccount($)
@@ -415,7 +442,7 @@ export const register: Register = on => {
     }
 
     if (verb === 'world' || verb === 'ranking') {
-      await refreshWorld($).catch(() => undefined)
+      await refreshAll($)
       await $.ui.open({ id: PANE, title: 'いい感じカウンター' })
 
       return { text: '世界ランキングを更新して、パネルを開きました。' }
@@ -430,6 +457,7 @@ export const register: Register = on => {
       return { text: verb === 'add' ? `「${word}」を口癖に追加しました。` : `「${word}」を口癖から外しました。` }
     }
 
+    await restoreOnline($)
     await $.ui.open({ id: PANE, title: 'いい感じカウンター' })
 
     return { text: 'いい感じカウンターのパネルを開きました。（追加: /iikanji add 語、削除: /iikanji remove 語）' }
@@ -590,6 +618,8 @@ export const register: Register = on => {
             ✨ いい感じランキング ✨{' '}
           </Text>
           <Button key="settings" label="⚙ 設定" onPress={() => $.ui.open({ id: SETTINGS_PANE, title: 'いい感じカウンターの設定' })} />
+          <Button key="refresh" label="🔄 更新" onPress={() => refreshAll($)} />
+          <Button key="clear" label="🧹 表示リセット" onPress={() => clearDisplay($)} />
         </Box>
         <Text>{rankOf(sum)}（通算 {sum} 回）</Text>
         <Text> </Text>

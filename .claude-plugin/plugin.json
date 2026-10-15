@@ -1,6 +1,6 @@
 {
   "name": "iikanji-counter",
-  "version": "0.3.1",
+  "version": "0.3.2",
   "description": "いい感じカウンター: 口癖（いい感じに・とりあえず など）を数えて、キャラ・ランキング・実績・言い換えヒントで見せる",
   "author": { "name": "kazuumi" },
   "types": "./types/index.d.ts"

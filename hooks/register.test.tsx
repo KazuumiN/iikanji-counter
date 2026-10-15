@@ -364,3 +364,46 @@ test('メダルの行はバナーで別の行になる', async ($, on) => {
   expect(all.length > 2).toBe(true)
   await ui.unmount()
 })
+
+test('パネルの更新ボタンで、保存済みの参加状態と世界ランキングが戻る', async ($, on) => {
+  mock.store(on, { account: { id: 'idididididididid1234', secret: 'secretsecretsecret12345', name: 'ためし' } })
+  mock.clock(on, { now: NOW })
+  mock.env(on, { IIKANJI_API_URL: 'https://ranking.test' })
+  const players = [{ rank: 1, name: 'ためし', total: 0, topPhrase: null, topCount: 0 }]
+  on('http.fetch', ((_$: unknown, e: { url: string }) => ({
+    value: {
+      status: 200,
+      ok: true,
+      headers: {},
+      text: new URL(e.url).pathname === '/v1/ranking' ? JSON.stringify({ players, count: 1 }) : JSON.stringify({ ok: true, rank: 1, players: 1 }),
+    },
+  })) as never)
+
+  const pane = await $.ui.mount({ plugin: 'iikanji-counter', surface: 'terminal', ...PANE } as never)
+  expect(await pane.find({ type: 'Text', text: /join で参加/ })).toBeDefined()
+  await pane.press({ key: 'refresh' })
+  expect(await pane.find({ type: 'Text', text: /あなた: ためし（世界 1 位 \/ 1 人中）/ })).toBeDefined()
+  expect(await pane.find({ type: 'Text', text: /join で参加/ })).toBeUndefined()
+  await pane.unmount()
+})
+
+test('表示リセットは、バナーと世界ランキングの表示だけを消し、累計は残す', async ($, on) => {
+  mock.store(on)
+  mock.clock(on, { now: NOW })
+  on('prompt.submit', ($$, e) => ({ text: e.text }) as never)
+  on('ui.open', open)
+  on('ui.render', ($$, e) => {
+    const { Text } = $$.ui.resolve(e)
+    return <Text>base</Text>
+  })
+  await $.prompt.submit({ text: 'いい感じにして' })
+
+  const pane = await $.ui.mount({ plugin: 'iikanji-counter', surface: 'terminal', ...PANE } as never)
+  await pane.press({ key: 'clear' })
+  expect(await pane.find({ type: 'Text', text: /「いい感じに」 1 回/ })).toBeDefined()
+  await pane.unmount()
+
+  const band = await $.ui.mount({ plugin: 'iikanji-counter', surface: 'terminal', ...BAND } as never)
+  expect(await band.find({ type: 'Button', key: 'ok' })).toBeUndefined()
+  await band.unmount()
+})
