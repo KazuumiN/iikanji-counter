@@ -1,0 +1,5 @@
+node_modules
+# 開発時にエンジンが生成する型・tsconfig
+.claude-plugin/types
+tsconfig.json
+.DS_Store
